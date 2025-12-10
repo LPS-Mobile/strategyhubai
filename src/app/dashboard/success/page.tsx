@@ -1,16 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthUser } from '@/lib/auth';
-import { CheckCircle, ArrowRight, AlertCircle } from 'lucide-react';
+import { CheckCircle, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { LoginModal } from '@/components/Loginmodal';
 
-export default function SuccessPage() {
+// --- 1. THE CONTENT COMPONENT (Logic lives here) ---
+function SuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { uid } = useAuthUser();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Safe to use here because we will wrap this component in Suspense below
   const sessionId = searchParams.get('session_id');
 
   useEffect(() => {
@@ -82,8 +85,28 @@ export default function SuccessPage() {
         </div>
       </div>
       
-      {/* Pass the email hint if your modal supports it, otherwise just open */}
       <LoginModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </>
+  );
+}
+
+// --- 2. FALLBACK COMPONENT (Shown while loading search params) ---
+function SuccessFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+       <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+          <p className="text-gray-500 font-medium">Verifying payment...</p>
+       </div>
+    </div>
+  );
+}
+
+// --- 3. THE MAIN PAGE COMPONENT (Exports Suspense Wrapper) ---
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<SuccessFallback />}>
+      <SuccessContent />
+    </Suspense>
   );
 }
