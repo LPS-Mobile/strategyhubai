@@ -8,7 +8,7 @@ import { SparklesIcon, ChartBarIcon } from '@heroicons/react/24/solid';
 
 import { cookies } from 'next/headers';
 // FIX: Corrected import path based on your project structure
-import { adminAuth, adminDb } from '@/lib/firebase/admin'; 
+import { adminAuth, adminDb } from '@/lib/firebase-admin'; 
 import * as admin from 'firebase-admin'; 
 import StrategyActionButtons from '@/components/strategies/StrategyActionButtons';
 
