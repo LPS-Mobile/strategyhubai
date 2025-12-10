@@ -3,7 +3,7 @@
 
 import React from 'react';
 // 🔑 CORRECTED IMPORT PATH based on your file structure
-import StrategyCard from '@/components/strategies/StrategyCard'; 
+import StrategyCard from '@/components/StrategyCard'; 
 // NOTE: Assuming Strategy type is available globally or defined in StrategyCard.tsx
 
 interface StrategyListClientProps {
