@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin'; // <--- FIXED PATH
+import { adminDb } from '@/lib/firebase-admin'; // <--- FIXED PATH
 import Stripe from 'stripe';
 
 // src/app/api/webhooks/route.ts
