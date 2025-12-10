@@ -7,18 +7,29 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import StrategyCard  from '@/components/StrategyCard'; 
 
-// --- FIX: Expanded Interface ---
-// We added the specific fields mentioned in the error + a catch-all for the rest
+// --- FIXED INTERFACE ---
+// Includes all fields required by StrategyCard based on your error message
 interface Strategy {
   id: string;
   name: string;
   description?: string;
+  
+  // Metrics
   winRate?: number | string;
   profitFactor?: number | string;
   maxDrawdown?: number | string;
+  
+  // Media & Links (Missing properties fixed here)
+  youtubeThumbnailUrl?: string;
+  backtestImageUrl?: string;
+  downloadLink?: string;
+  sourceLink?: string;
   sourceReference?: string;
-  // This line allows any other extra properties that StrategyCard expects
-  // (like 'tier', 'asset', 'timeframe') so the build won't fail.
+  
+  // Meta
+  assetClass?: string;
+  
+  // Catch-all for any other fields
   [key: string]: any; 
 }
 
@@ -39,7 +50,7 @@ export default function SavedStrategiesPage() {
       setError(null);
       
       try {
-        // 1. Get the user's document to find the list of saved strategy IDs
+        // 1. Get user doc
         const userDocRef = doc(db, 'users', user.uid);
         const userDocSnap = await getDoc(userDocRef);
 
@@ -47,7 +58,7 @@ export default function SavedStrategiesPage() {
           throw new Error('User data not found.');
         }
 
-        // 2. Get the array of saved strategy IDs
+        // 2. Get saved IDs
         const savedIds = userDocSnap.data()?.savedStrategies || [];
 
         if (savedIds.length === 0) {
@@ -56,9 +67,7 @@ export default function SavedStrategiesPage() {
           return; 
         }
 
-        // 3. Fetch the actual strategy documents
-        // Firestore 'in' queries are limited to 30 items. 
-        // If users save >30 items, this will crash. For now, we slice to 30.
+        // 3. Fetch strategy docs (Limit to 30 due to Firestore 'in' query limit)
         const safeIds = savedIds.slice(0, 30); 
         
         const strategiesQuery = query(
