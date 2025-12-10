@@ -1,12 +1,11 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase/admin'; // <--- FIXED PATH
 import Stripe from 'stripe';
 
 // src/app/api/webhooks/route.ts
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  // Change this line:
   apiVersion: '2025-10-29.clover' as any, 
 });
 
@@ -24,7 +23,10 @@ const getTierName = (priceId: string) => {
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const signature = headers().get('stripe-signature') as string;
+  
+  // FIXED: Await the headers() call (Required for Next.js 15)
+  const headerPayload = await headers(); 
+  const signature = headerPayload.get('stripe-signature') as string;
 
   let event: Stripe.Event;
 
@@ -88,8 +90,15 @@ export async function POST(req: Request) {
 // Update User based on Subscription Object
 async function syncSubscriptionStatus(subscription: Stripe.Subscription, isDeleted = false) {
   const customerId = subscription.customer as string;
+  
+  // Safety check: Ensure items data exists
+  if (!subscription.items?.data?.[0]?.price?.id) {
+      console.error('Subscription has no price ID');
+      return;
+  }
+
   const priceId = subscription.items.data[0].price.id;
-  const status = subscription.status; // active, past_due, trialing
+  const status = subscription.status; 
   
   // Map Stripe Price ID to your App's Tier Name
   let tier = getTierName(priceId);
@@ -111,10 +120,10 @@ async function syncSubscriptionStatus(subscription: Stripe.Subscription, isDelet
   
   query.forEach((doc) => {
     batch.set(doc.ref, {
-      subscriptionStatus: tier, // 'active trader', 'quant edge', or 'free'
+      subscriptionStatus: tier, 
       stripeSubscriptionId: subscription.id,
-      stripeStatus: status, // technical status from stripe
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000), // Convert UNIX timestamp
+      stripeStatus: status, 
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000), 
       updatedAt: new Date(),
     }, { merge: true });
   });
@@ -125,14 +134,11 @@ async function syncSubscriptionStatus(subscription: Stripe.Subscription, isDelet
 
 // Initial linkage after Checkout
 async function updateUser(uid: string, customerId: string, subscriptionId: string) {
-  // We need to fetch the subscription details to know WHICH plan they bought
-  // (Checkout session doesn't contain the price ID directly in the main object)
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   
   await adminDb.collection('users').doc(uid).set({
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscriptionId,
-    // Recursively call the sync logic to set the tier correctly
   }, { merge: true });
   
   await syncSubscriptionStatus(subscription);
