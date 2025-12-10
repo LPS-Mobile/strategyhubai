@@ -38,12 +38,12 @@ const initialFormData = {
   // Links
   sourceReference: '',
   sourceLink: '', 
-  downloadLink: '', // Used for "Download Source Code" if you ever add it back
+  downloadLink: '', 
   
   // ✅ NEW FIELDS FOR MODAL TOOLS
-  reportLink: '',       // For "Full Report Access" button
-  botmanLink: '',       // For "Import to Botman" button
-  probabilityLink: '',  // For "Probability Insights" button
+  reportLink: '',       
+  botmanLink: '',       
+  probabilityLink: '',  
 
   assetClass: '',
   description: '',
@@ -61,9 +61,10 @@ export default function StrategyFormModal({ isOpen, onClose, onSave, strategyToE
   useEffect(() => {
     if (isOpen) {
       if (strategyToEdit) {
+        // FIX: Cast to 'any' to allow destructuring of properties that might not be in the strict Strategy type yet
         const { 
             id, youtubeThumbnailUrl, tags, equityCurve, ...rest 
-        } = strategyToEdit;
+        } = strategyToEdit as any;
         
         setFormData({
           ...initialFormData, 
