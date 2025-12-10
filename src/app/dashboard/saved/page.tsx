@@ -1,3 +1,4 @@
+// src/app/dashboard/saved/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -6,7 +7,8 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import StrategyCard  from '@/components/StrategyCard'; 
 
-// --- INTERFACE DEFINITION ---
+// --- FIXED INTERFACE ---
+// All fields below match the strict requirements of StrategyCard
 interface Strategy {
   id: string;
   name: string;
@@ -17,15 +19,15 @@ interface Strategy {
   profitFactor: number;
   maxDrawdown: number;
   
-  // Media & Links 
-  youtubeThumbnailUrl?: string;
-  backtestImageUrl?: string;
-  downloadLink?: string;
-  sourceLink?: string;
-  sourceReference?: string;
-  assetClass?: string;
+  // Media & Links (Must be strings, cannot be undefined)
+  youtubeThumbnailUrl: string;
+  backtestImageUrl: string;
+  downloadLink: string;
+  sourceLink: string;
+  sourceReference: string;
+  assetClass: string;
   
-  // Catch-all for any other fields
+  // Catch-all
   [key: string]: any; 
 }
 
@@ -79,12 +81,20 @@ export default function SavedStrategiesPage() {
           return {
             id: doc.id,
             ...data,
-            // Force conversion to number, default to 0 if missing/invalid
+            // --- FIX: Force Strings (Prevent 'undefined') ---
+            name: data.name || 'Untitled Strategy',
+            description: data.description || '',
+            sourceReference: data.sourceReference || '', 
+            sourceLink: data.sourceLink || '',
+            youtubeThumbnailUrl: data.youtubeThumbnailUrl || '',
+            backtestImageUrl: data.backtestImageUrl || '',
+            downloadLink: data.downloadLink || '',
+            assetClass: data.assetClass || '',
+
+            // --- FIX: Force Numbers ---
             winRate: Number(data.winRate) || 0,
             profitFactor: Number(data.profitFactor) || 0,
             maxDrawdown: Number(data.maxDrawdown) || 0,
-            name: data.name || 'Untitled Strategy',
-            description: data.description || '',
           };
         }) as Strategy[];
 
