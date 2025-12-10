@@ -236,11 +236,9 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 <div className="flex flex-wrap items-center gap-4 text-blue-100">
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
                     <ChartBarIcon className="w-5 h-5"/>
-                    {/* FIX: Cast to any for missing property */}
                     <span className="font-semibold">{(strategy as any).market || 'Unknown Market'}</span>
                   </div>
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-                    {/* FIX: Cast to any for missing property */}
                     <span className="font-medium">{(strategy as any).timeframe || 'Daily'}</span>
                   </div>
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -306,7 +304,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 
                 <MetricBoxDetail 
                   label="Total Trades" 
-                  // FIX: Cast to any for missing property
                   value={(strategy as any).tradeCount?.toLocaleString() || 'N/A'} 
                   color="text-blue-600"
                   size="text-3xl"
@@ -315,7 +312,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
                 <MetricBoxDetail 
                   label="Risk:Reward Ratio" 
-                  // FIX: Cast to any for missing property
                   value={`1:${formatMetric((strategy as any).riskReward)}`} 
                   color="text-indigo-600"
                   size="text-3xl"
@@ -324,7 +320,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
                 <MetricBoxDetail 
                   label="Expectancy" 
-                  // FIX: Cast to any for missing property
                   value={`$${formatMetric((strategy as any).expectancy, 2)}`} 
                   color="text-green-600"
                   size="text-3xl"
@@ -333,7 +328,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 
                 <MetricBoxDetail 
                   label="Duration Tested" 
-                  // FIX: Cast to any for missing property
                   value={`${(strategy as any).durationMonths || 'N/A'}`} 
                   unit=" Months"
                   color="text-purple-600"
@@ -349,7 +343,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                   <h3 className="text-lg font-bold text-amber-900">Strategy Tags</h3>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {/* FIX: Cast to any for missing property */}
                   {(strategy as any).tags?.map((tag: string, index: number) => (
                     <span 
                       key={index} 
@@ -455,7 +448,8 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
               
               <StrategyActionButtons 
                 strategy={strategy} 
-                userSubscription={session?.tier || 'Free'} 
+                // FIX: Cast to any to accept 'Admin' or 'Free'
+                userSubscription={(session?.tier || 'Free') as any} 
                 userRole={session?.tier === 'Admin' ? 'admin' : 'user'}
               />
             </section>
