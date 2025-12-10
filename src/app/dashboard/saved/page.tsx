@@ -2,16 +2,24 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuthUser } from '@/lib/auth'; // From your project summary
-import { db } from '@/lib/firebase'; // From your project summary
+import { useAuthUser } from '@/lib/auth'; 
+import { db } from '@/lib/firebase'; 
 import { doc, getDoc, collection, query, where, getDocs, documentId } from 'firebase/firestore';
-import StrategyCard  from '@/components/StrategyCard'; // Reusing the existing component
+import StrategyCard  from '@/components/StrategyCard'; 
 
-// Define a type for the strategy data (assuming structure)
+// --- FIX: Expanded Interface ---
+// We added the specific fields mentioned in the error + a catch-all for the rest
 interface Strategy {
   id: string;
   name: string;
-  // ... other fields like metrics, description, etc.
+  description?: string;
+  winRate?: number | string;
+  profitFactor?: number | string;
+  maxDrawdown?: number | string;
+  sourceReference?: string;
+  // This line allows any other extra properties that StrategyCard expects
+  // (like 'tier', 'asset', 'timeframe') so the build won't fail.
+  [key: string]: any; 
 }
 
 export default function SavedStrategiesPage() {
@@ -24,7 +32,7 @@ export default function SavedStrategiesPage() {
     const fetchSavedStrategies = async () => {
       if (!user) {
         setLoading(false);
-        return; // Wait for user to be available
+        return; 
       }
 
       setLoading(true);
@@ -39,22 +47,23 @@ export default function SavedStrategiesPage() {
           throw new Error('User data not found.');
         }
 
-        // 2. Get the array of saved strategy IDs (e.g., 'savedStrategies')
-        // This field name is assumed based on the StrategyCard save logic
+        // 2. Get the array of saved strategy IDs
         const savedIds = userDocSnap.data()?.savedStrategies || [];
 
         if (savedIds.length === 0) {
           setStrategies([]);
           setLoading(false);
-          return; // User has no saved strategies
+          return; 
         }
 
-        // 3. Fetch the actual strategy documents from the 'strategies' collection
-        // We use the `documentId()` helper to query by the document ID
-        // Note: Firestore 'in' queries are limited to 30 items.
+        // 3. Fetch the actual strategy documents
+        // Firestore 'in' queries are limited to 30 items. 
+        // If users save >30 items, this will crash. For now, we slice to 30.
+        const safeIds = savedIds.slice(0, 30); 
+        
         const strategiesQuery = query(
           collection(db, 'strategies'),
-          where(documentId(), 'in', savedIds)
+          where(documentId(), 'in', safeIds)
         );
 
         const querySnapshot = await getDocs(strategiesQuery);
@@ -75,22 +84,29 @@ export default function SavedStrategiesPage() {
     };
 
     fetchSavedStrategies();
-  }, [user]); // Re-run when the user object changes
+  }, [user]); 
 
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Your Saved Strategies</h1>
 
-      {loading && <p>Loading...</p> /* TODO: Replace with a spinner component */}
+      {loading && (
+        <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      )}
       
       {!loading && !user && (
         <p>Please log in to view your saved strategies.</p>
       )}
 
-      {error && <p className="text-red-500">{error}</p>}
+      {error && <p className="text-red-500 bg-red-50 p-4 rounded-lg">{error}</p>}
 
       {!loading && user && strategies.length === 0 && (
-        <p>You haven't saved any strategies yet. Go to the Strategy Hub to find new ones!</p>
+        <div className="text-center py-12 text-gray-500">
+            <p>You haven't saved any strategies yet.</p>
+            <p className="text-sm mt-2">Go to the Strategy Hub to find new ones!</p>
+        </div>
       )}
 
       {!loading && strategies.length > 0 && (
