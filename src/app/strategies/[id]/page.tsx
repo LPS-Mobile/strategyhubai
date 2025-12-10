@@ -7,7 +7,6 @@ import { CheckCircleIcon, CodeBracketSquareIcon, PlayCircleIcon, ArrowLeftIcon, 
 import { SparklesIcon, ChartBarIcon } from '@heroicons/react/24/solid';
 
 import { cookies } from 'next/headers';
-// FIX: Corrected import path based on your project structure
 import { adminAuth, adminDb } from '@/lib/firebase-admin'; 
 import * as admin from 'firebase-admin'; 
 import StrategyActionButtons from '@/components/strategies/StrategyActionButtons';
@@ -52,7 +51,6 @@ async function getUserSession() {
     const userData = userDoc.data();
     let tier = (userData?.subscriptionTier as SubscriptionTier) || null;
 
-    // Admin Override check
     if (userData?.role === 'admin' || tier?.toString().toLowerCase().includes('admin')) {
         tier = 'Admin';
     }
@@ -67,12 +65,10 @@ async function getUserSession() {
 
 // 2. LOGIC: Check & Increment View Limit (3 Per Month)
 async function checkViewLimit(userId: string, strategyId: string, tier: SubscriptionTier): Promise<{ allowed: boolean }> {
-    // Unlimited Tiers
     if (tier === 'Active Trader' || tier === 'Quant Edge' || tier === 'Admin') {
         return { allowed: true };
     }
 
-    // Curious Retail Logic (Limit 3)
     if (tier === 'Curious Retail') {
         const LIMIT = 3;
         const now = new Date();
@@ -86,17 +82,14 @@ async function checkViewLimit(userId: string, strategyId: string, tier: Subscrip
                 const data = doc.data() || { viewedStrategies: [] };
                 const viewedList: string[] = data.viewedStrategies || [];
 
-                // Already viewed? Allow.
                 if (viewedList.includes(strategyId)) {
                     return { allowed: true };
                 }
 
-                // Limit reached? Block.
                 if (viewedList.length >= LIMIT) {
                     return { allowed: false };
                 }
 
-                // Under limit? Add to list and Allow.
                 t.set(usageRef, {
                     viewedStrategies: admin.firestore.FieldValue.arrayUnion(strategyId),
                     lastUpdated: new Date()
@@ -110,7 +103,6 @@ async function checkViewLimit(userId: string, strategyId: string, tier: Subscrip
         }
     }
 
-    // Free Tier / No Tier -> Block
     return { allowed: false };
 }
 
@@ -193,16 +185,13 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
   if (!id || typeof id !== 'string') return null;
 
-  // 1. Get Session
   const session = await getUserSession();
   
-  // 2. Check Limits (Block if needed)
   if (session) {
       const { allowed } = await checkViewLimit(session.userId, id, session.tier);
       if (!allowed) return <LimitReachedScreen />;
   }
 
-  // 3. Fetch Data
   const strategy = await getStrategy(id);
 
   if (!strategy) {
@@ -224,16 +213,13 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 py-8 px-4 md:px-8">
       <div className="max-w-7xl mx-auto">
         
-        {/* Back Button */}
         <Link href="/strategies" className="inline-flex items-center gap-2 text-gray-600 hover:text-blue-600 transition mb-6 group">
           <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform"/>
           <span className="font-medium">Back to Strategies</span>
         </Link>
 
-        {/* Main Content Card */}
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
           
-          {/* Header Section */}
           <header className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white p-8 md:p-12">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -250,11 +236,11 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 <div className="flex flex-wrap items-center gap-4 text-blue-100">
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
                     <ChartBarIcon className="w-5 h-5"/>
-                    {/* FIX: Added cast to fix 'Property market does not exist' error */}
+                    {/* FIX: Cast to any for missing property */}
                     <span className="font-semibold">{(strategy as any).market || 'Unknown Market'}</span>
                   </div>
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-                    {/* FIX: Added cast to fix 'Property timeframe does not exist' error */}
+                    {/* FIX: Cast to any for missing property */}
                     <span className="font-medium">{(strategy as any).timeframe || 'Daily'}</span>
                   </div>
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -274,7 +260,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 Key Performance Metrics
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                {/* Win Rate */}
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl shadow-sm border border-green-200 hover:shadow-lg transition-all duration-200">
                   <p className="text-sm font-semibold text-green-700 uppercase tracking-wide mb-2">Win Rate</p>
                   <p className="text-5xl font-extrabold text-green-700">
@@ -283,7 +268,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                   </p>
                 </div>
                 
-                {/* Profit Factor */}
                 <div className="bg-gradient-to-br from-blue-50 to-sky-50 p-6 rounded-2xl shadow-sm border border-blue-200 hover:shadow-lg transition-all duration-200">
                   <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide mb-2">Profit Factor</p>
                   <p className="text-5xl font-extrabold text-blue-700">
@@ -291,7 +275,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                   </p>
                 </div>
                 
-                {/* Max Drawdown */}
                 <div className="bg-gradient-to-br from-red-50 to-rose-50 p-6 rounded-2xl shadow-sm border border-red-200 hover:shadow-lg transition-all duration-200">
                   <p className="text-sm font-semibold text-red-700 uppercase tracking-wide mb-2">Max Drawdown</p>
                   <p className="text-5xl font-extrabold text-red-700">
@@ -300,7 +283,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                   </p>
                 </div>
                 
-                {/* Source Link */}
                 <a 
                   href={strategy.sourceLink} 
                   target="_blank" 
@@ -324,7 +306,8 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 
                 <MetricBoxDetail 
                   label="Total Trades" 
-                  value={strategy.tradeCount?.toLocaleString() || 'N/A'} 
+                  // FIX: Cast to any for missing property
+                  value={(strategy as any).tradeCount?.toLocaleString() || 'N/A'} 
                   color="text-blue-600"
                   size="text-3xl"
                   bgColor="bg-gradient-to-br from-blue-50 to-blue-100"
@@ -332,7 +315,8 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
                 <MetricBoxDetail 
                   label="Risk:Reward Ratio" 
-                  value={`1:${formatMetric(strategy.riskReward)}`} 
+                  // FIX: Cast to any for missing property
+                  value={`1:${formatMetric((strategy as any).riskReward)}`} 
                   color="text-indigo-600"
                   size="text-3xl"
                   bgColor="bg-gradient-to-br from-indigo-50 to-indigo-100"
@@ -340,7 +324,8 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
                 <MetricBoxDetail 
                   label="Expectancy" 
-                  value={`$${formatMetric(strategy.expectancy, 2)}`} 
+                  // FIX: Cast to any for missing property
+                  value={`$${formatMetric((strategy as any).expectancy, 2)}`} 
                   color="text-green-600"
                   size="text-3xl"
                   bgColor="bg-gradient-to-br from-green-50 to-green-100"
@@ -348,7 +333,8 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 
                 <MetricBoxDetail 
                   label="Duration Tested" 
-                  value={`${strategy.durationMonths || 'N/A'}`} 
+                  // FIX: Cast to any for missing property
+                  value={`${(strategy as any).durationMonths || 'N/A'}`} 
                   unit=" Months"
                   color="text-purple-600"
                   size="text-3xl"
@@ -363,7 +349,8 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                   <h3 className="text-lg font-bold text-amber-900">Strategy Tags</h3>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {strategy.tags?.map((tag, index) => (
+                  {/* FIX: Cast to any for missing property */}
+                  {(strategy as any).tags?.map((tag: string, index: number) => (
                     <span 
                       key={index} 
                       className="px-4 py-2 bg-white text-amber-700 text-sm font-semibold rounded-full border border-amber-300 shadow-sm hover:shadow-md transition"
@@ -442,7 +429,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
               })()}
             </section>
 
-            {/* Performance Verification */}
             <section className="mb-12">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <span className="w-1 h-8 bg-green-600 rounded-full"></span>
@@ -461,7 +447,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
               </div>
             </section>
             
-            {/* Strategy Actions */}
             <section className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-200">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center flex items-center justify-center gap-3">
                 <span className="w-1 h-8 bg-blue-600 rounded-full"></span>
