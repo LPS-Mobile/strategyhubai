@@ -7,8 +7,9 @@ import { CheckCircleIcon, CodeBracketSquareIcon, PlayCircleIcon, ArrowLeftIcon, 
 import { SparklesIcon, ChartBarIcon } from '@heroicons/react/24/solid';
 
 import { cookies } from 'next/headers';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import * as admin from 'firebase-admin'; // Required for arrayUnion
+// FIX: Corrected import path based on your project structure
+import { adminAuth, adminDb } from '@/lib/firebase/admin'; 
+import * as admin from 'firebase-admin'; 
 import StrategyActionButtons from '@/components/strategies/StrategyActionButtons';
 
 // --- Constants & Types ---
@@ -199,9 +200,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
   if (session) {
       const { allowed } = await checkViewLimit(session.userId, id, session.tier);
       if (!allowed) return <LimitReachedScreen />;
-  } else {
-      // Optional: Redirect to login if no session, or allow limited preview
-      // return <div...Please Login...</div>
   }
 
   // 3. Fetch Data
@@ -242,7 +240,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 <div className="flex items-center gap-3 mb-4">
                   <CheckCircleIcon className="w-6 h-6 text-green-400"/>
                   <span className="text-sm font-semibold uppercase tracking-wide text-blue-100">Verified Strategy</span>
-                  {/* View Used Badge */}
                   {session?.tier === 'Curious Retail' && (
                       <span className="ml-2 px-3 py-1 bg-white/20 rounded-full text-xs font-bold">Free View Used</span>
                   )}
@@ -253,14 +250,16 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 <div className="flex flex-wrap items-center gap-4 text-blue-100">
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
                     <ChartBarIcon className="w-5 h-5"/>
-                    <span className="font-semibold">{strategy.market || 'Unknown Market'}</span>
+                    {/* FIX: Added cast to fix 'Property market does not exist' error */}
+                    <span className="font-semibold">{(strategy as any).market || 'Unknown Market'}</span>
                   </div>
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-                    <span className="font-medium">{strategy.timeframe || 'Daily'}</span>
+                    {/* FIX: Added cast to fix 'Property timeframe does not exist' error */}
+                    <span className="font-medium">{(strategy as any).timeframe || 'Daily'}</span>
                   </div>
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
                     <CodeBracketSquareIcon className="w-5 h-5"/>
-                    <span className="font-medium">{strategy.assetClass}</span>
+                    <span className="font-medium">{strategy.assetClass || 'Asset'}</span>
                   </div>
                 </div>
               </div>
@@ -376,7 +375,7 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
               </div>
             </section>
 
-            {/* Strategy Description Section (Preserving your exact logic) */}
+            {/* Strategy Description */}
             <section className="mb-12">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <span className="w-1 h-8 bg-purple-600 rounded-full"></span>
@@ -469,7 +468,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 Get This Strategy
               </h2>
               
-              {/* ✅ FIXED: Passing FULL strategy object to fix link 404s */}
               <StrategyActionButtons 
                 strategy={strategy} 
                 userSubscription={session?.tier || 'Free'} 
