@@ -28,7 +28,8 @@ function SubmitButton() {
 }
 
 export default function AddUserModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [formState, formAction] = useFormState(createNewUser, { message: null, errors: null });
+  // FIX: Changed 'message: null' to 'message: ""' to satisfy TypeScript string requirement
+  const [formState, formAction] = useFormState(createNewUser, { message: '', errors: null });
 
   useEffect(() => {
     // If user was created successfully, close the modal
@@ -37,7 +38,7 @@ export default function AddUserModal({ isOpen, onClose }: { isOpen: boolean; onC
       onClose();
     }
     // If there was an error (but not a validation error), show it
-    if (formState.message && formState.message !== 'Validation failed') {
+    if (formState.message && formState.message !== 'Validation failed' && formState.message !== 'User created successfully!') {
       alert(formState.message);
     }
   }, [formState, onClose]);
