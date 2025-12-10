@@ -13,14 +13,12 @@ export default function Navbar() {
   const router = useRouter();
   const handleSignOut = useSignOut();
   
-  // 3. Get user auth, subscription status, and role
   // @ts-ignore - ignoring TS error if 'role' isn't explicitly defined in your hook type yet
   const { user, subscriptionStatus, role, loading } = useAuthUser();
   
-  // 4. Add state for the new modal
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // 5. FIX: Robust Permission Logic for "Strategies" Link
+  // Robust Permission Logic for "Strategies" Link
   const handleStrategiesClick = (e: React.MouseEvent) => {
     
     // 1. Normalize the string to handle "Active Trader", "active", "Admin", etc.
@@ -53,7 +51,6 @@ export default function Navbar() {
     return <header className="h-16 bg-white border-b border-gray-200" />;
   }
   
-  // Define link styling helper
   const navLinkClass = (path: string) => 
     `flex items-center space-x-1 py-2 text-sm font-medium transition-colors cursor-pointer ${
       pathname.startsWith(path)
@@ -79,7 +76,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* 6. Strategies link logic using the fixed handler */}
+            {/* Strategies link logic using the fixed handler */}
             {user && (
               <a
                 href="/strategies" // Use <a> so onClick works properly
@@ -114,8 +111,8 @@ export default function Navbar() {
         </div>
       </header>
       
-      {/* 7. Put the modal at the end */}
-      {isModalOpen && <SubscribeModal onClose={() => setIsModalOpen(false)} />}
+      {/* FIX: Added isOpen={true} prop */}
+      {isModalOpen && <SubscribeModal isOpen={true} onClose={() => setIsModalOpen(false)} />}
     </>
   );
 }
