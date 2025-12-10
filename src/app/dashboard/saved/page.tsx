@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuthUser } from '@/lib/auth'; // From your project summary
 import { db } from '@/lib/firebase'; // From your project summary
 import { doc, getDoc, collection, query, where, getDocs, documentId } from 'firebase/firestore';
-import { StrategyCard } from '@/components/strategies/StrategyCard'; // Reusing the existing component
+import StrategyCard  from '@/components/StrategyCard'; // Reusing the existing component
 
 // Define a type for the strategy data (assuming structure)
 interface Strategy {
