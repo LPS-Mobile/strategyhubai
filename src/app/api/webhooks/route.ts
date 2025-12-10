@@ -3,8 +3,11 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import Stripe from 'stripe';
 
+// src/app/api/webhooks/route.ts
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia', // Update to match your Stripe version
+  // Change this line:
+  apiVersion: '2025-10-29.clover' as any, 
 });
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
