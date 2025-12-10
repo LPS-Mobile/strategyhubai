@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AdminUser } from '@/app/dashboard/admin/page';
 import { db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { deleteUser } from '@/lib/admin-actions'; // Import the delete action
+import { deleteUser } from '@/lib/admin-actions'; 
 
 // Define all possible statuses for the dropdown
 const STATUS_OPTIONS = [
@@ -17,14 +17,14 @@ const STATUS_OPTIONS = [
 
 export default function UserAdminTable({ initialUsers }: { initialUsers: AdminUser[] }) {
   const [users, setUsers] = useState(initialUsers);
-  const [loading, setLoading] = useState<string | null>(null); // Track loading by user ID
+  const [loading, setLoading] = useState<string | null>(null); 
 
   /**
    * Handles updating the user's role and/or subscription status in Firestore.
    */
   const handleStatusChange = async (
     userId: string,
-    newStatus: string // e.g., 'Inactive', 'Admin', 'Curious Retail'
+    newStatus: string 
   ) => {
     setLoading(userId);
 
@@ -33,12 +33,11 @@ export default function UserAdminTable({ initialUsers }: { initialUsers: AdminUs
 
     if (newStatus === 'Admin') {
       roleToSave = 'admin';
-      statusToSave = null; // Admin role supersedes subscription
+      statusToSave = null; 
     } else if (newStatus === 'Inactive') {
       roleToSave = null;
       statusToSave = null;
     } else {
-      // This is a subscription tier (e.g., 'Curious Retail')
       roleToSave = null;
       statusToSave = newStatus;
     }
@@ -59,7 +58,9 @@ export default function UserAdminTable({ initialUsers }: { initialUsers: AdminUs
       setUsers(
         users.map((u) =>
           u.id === userId
-            ? { ...u, subscriptionStatus: statusToSave, role: roleToSave }
+            // FIX: Cast roleToSave to 'any' because strict type might be "admin" | null
+            // FIX: Cast statusToSave to 'any' because strict type might be "active" | "inactive" | null
+            ? { ...u, subscriptionStatus: statusToSave as any, role: roleToSave as any }
             : u
         )
       );
@@ -75,61 +76,50 @@ export default function UserAdminTable({ initialUsers }: { initialUsers: AdminUs
 
   /**
    * Helper to determine current status for the dropdown.
-   * Priority: Admin > Subscription > Inactive
-   * INCLUDES FIX for backward compatibility with old 'active' status.
    */
   const getCurrentStatus = (user: AdminUser) => {
-    // 1. Check for Admin role first (highest priority)
     if (user.role === 'admin') {
       return 'Admin';
     }
 
-    // 2. Check for a subscription status
     if (user.subscriptionStatus) {
-      // FIX: Handle the legacy 'active' value from old data.
-      // We'll map it to 'Active Trader' as the default paid tier.
       if (user.subscriptionStatus === 'active') {
         return 'Active Trader';
       }
-
-      // If it's not 'active', it's one of the new tiers
       return user.subscriptionStatus;
     }
 
-    // 3. If no role and no subscription, they are Inactive.
     return 'Inactive';
   };
 
   /**
    * Handles deleting a user.
    */
-  const handleDeleteUser = async (userId: string, userEmail: string) => {
+  const handleDeleteUser = async (userId: string, userEmail: string | null) => {
     if (
       !window.confirm(
-        `Are you sure you want to delete user ${userEmail}? \nThis action is irreversible and will delete them from Authentication and Firestore.`
+        `Are you sure you want to delete user ${userEmail || userId}? \nThis action is irreversible and will delete them from Authentication and Firestore.`
       )
     ) {
       return;
     }
 
-    setLoading(userId); // Use the existing loading state
+    setLoading(userId); 
 
     try {
       const result = await deleteUser(userId);
 
       if (result.message === 'User deleted successfully.') {
-        // Update local state for instant UI feedback
         setUsers(users.filter((u) => u.id !== userId));
         alert('User deleted successfully.');
       } else {
-        // Show error message from the server action
         alert(result.message);
       }
     } catch (error) {
       alert('An unexpected error occurred. Check the console.');
       console.error(error);
     } finally {
-      setLoading(null); // Clear the loading state
+      setLoading(null); 
     }
   };
 
