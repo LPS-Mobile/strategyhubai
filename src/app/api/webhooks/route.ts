@@ -123,7 +123,7 @@ async function syncSubscriptionStatus(subscription: Stripe.Subscription, isDelet
       subscriptionStatus: tier, 
       stripeSubscriptionId: subscription.id,
       stripeStatus: status, 
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000), 
+      currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
       updatedAt: new Date(),
     }, { merge: true });
   });
