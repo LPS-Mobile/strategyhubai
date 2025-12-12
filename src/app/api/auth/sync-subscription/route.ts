@@ -1,13 +1,12 @@
+// src/app/api/auth/sync-subscription/route.ts
+
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { adminDb } from '@/lib/firebase-admin'; // Ensure you have firebase-admin set up
+import { adminDb } from '@/lib/firebaseAdmin'; 
 
-// If you DO NOT have firebase-admin set up yet, 
-// delete the adminDb import and the adminDb.collection code block below,
-// and just rely on your Stripe Webhook to update the user later.
-
+// Initialize Stripe with your specific version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
+  apiVersion: '2025-10-29.clover' as any, 
 });
 
 export async function POST(request: Request) {
@@ -25,18 +24,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Not Paid' }, { status: 403 });
     }
 
-    // 2. Immediate DB Update (Faster than webhook)
-    // Only works if you have firebase-admin initialized
+    // 2. Update Firestore via Admin SDK
     if (adminDb) {
-       // Map price ID to your role names
-       const priceId = session.line_items?.data[0]?.price?.id; 
-       // You might need to fetch line items if they aren't in the session object directly
-       
        await adminDb.collection('users').doc(uid).set({
         subscriptionStatus: 'active',
         stripeCustomerId: session.customer,
         email: session.customer_details?.email,
         updatedAt: new Date(),
+        // Optional: Store the session ID to prevent reusing it
+        lastPaymentSessionId: stripeSessionId 
       }, { merge: true });
     }
 
@@ -44,7 +40,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("Sync Error:", error);
-    // Return 500 but JSON, so frontend doesn't crash with "<" token error
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
