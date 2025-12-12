@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { CheckCircleIcon, CodeBracketSquareIcon, PlayCircleIcon, ArrowLeftIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { SparklesIcon, ChartBarIcon } from '@heroicons/react/24/solid';
 import { cookies } from 'next/headers';
-
-// FIX 1: Use only adminDb for fetching data in Server Components
 import { adminAuth, adminDb } from '@/lib/firebase-admin'; 
 import * as admin from 'firebase-admin'; 
 import StrategyActionButtons from '@/components/strategies/StrategyActionButtons';
@@ -29,7 +27,6 @@ interface MetricBoxProps {
 
 // --- Helper Functions ---
 
-// 1. Get User Session & Tier
 async function getUserSession() {
   try {
     const cookieStore = await cookies();
@@ -46,7 +43,6 @@ async function getUserSession() {
     const userData = userDoc.data();
     let tier = (userData?.subscriptionTier as SubscriptionTier) || null;
 
-    // Check logic for Admin role
     if (userData?.role === 'admin' || tier?.toString().toLowerCase().includes('admin')) {
         tier = 'Admin';
     }
@@ -54,12 +50,10 @@ async function getUserSession() {
     return { userId, tier };
 
   } catch (error) {
-    // console.warn("Session verification failed:", error); 
     return null;
   }
 }
 
-// 2. LOGIC: Check & Increment View Limit
 async function checkViewLimit(userId: string, strategyId: string, tier: SubscriptionTier): Promise<{ allowed: boolean }> {
     if (tier === 'Active Trader' || tier === 'Quant Edge' || tier === 'Admin') {
         return { allowed: true };
@@ -102,41 +96,52 @@ async function checkViewLimit(userId: string, strategyId: string, tier: Subscrip
     return { allowed: false };
 }
 
-// FIX 2: Use adminDb instead of client db
 async function getStrategy(id: string): Promise<Strategy | null> {
   if (!id) return null;
 
   try {
-    // Clean the ID just in case
     const cleanId = id.trim();
-    
-    // Use Admin SDK to bypass client-side security rules
     const docSnap = await adminDb.collection('strategies').doc(cleanId).get();
 
     if (docSnap.exists) {
       const data = docSnap.data();
-      // Ensure we return a plain object compatible with the Strategy interface
+      
       return {
         id: docSnap.id,
-        name: data?.name || '',
+        name: data?.name || 'Untitled Strategy',
         description: data?.description || '',
-        winRate: data?.winRate || 0,
-        profitFactor: data?.profitFactor || 0,
-        trades: data?.trades || 0,
-        tier: data?.tier || 'Curious Retail',
         status: data?.status || 'active',
+        tier: data?.tier || 'Curious Retail',
+        
+        winRate: Number(data?.winRate) || 0,
+        profitFactor: Number(data?.profitFactor) || 0,
+        trades: Number(data?.trades) || 0,
+        maxDrawdown: Number(data?.maxDrawdown) || 0,
+        riskReward: Number(data?.riskReward) || 0,
+        expectancy: Number(data?.expectancy) || 0,
+        durationMonths: Number(data?.durationMonths) || 0,
+
+        assetClass: data?.assetClass || 'General',
+        market: data?.market || 'All',
+        timeframe: data?.timeframe || 'Any',
+
         imageUrl: data?.imageUrl || '',
         videoUrl: data?.videoUrl || '',
         detailedReportUrl: data?.detailedReportUrl || '',
-        // Add any other fields you need, casting strictly if necessary
+        sourceReference: data?.sourceReference || '',
+        youtubeThumbnailUrl: data?.youtubeThumbnailUrl || '',
+        
+        // IMPORTANT: Ensure this field is mapped
+        backtestImageUrl: data?.backtestImageUrl || '',
+
         ...data 
-      } as Strategy;
+      } as unknown as Strategy; 
     } else {
-      console.error(`Strategy ID ${cleanId} not found in Firestore.`);
+      console.error(`Strategy ID ${cleanId} not found.`);
       return null;
     }
   } catch (error) {
-    console.error(`Error fetching strategy with ID ${id}:`, error);
+    console.error(`Error fetching strategy ${id}:`, error);
     return null;
   }
 }
@@ -163,7 +168,6 @@ const MetricBoxDetail = ({
     </div>
 );
 
-// --- Limit Reached UI ---
 const LimitReachedScreen = () => (
     <div className="min-h-[70vh] flex items-center justify-center p-4">
         <div className="bg-white max-w-lg w-full rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
@@ -201,7 +205,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
   const session = await getUserSession();
   
-  // Only check limits if logged in; otherwise let them see basic info or redirect (up to your auth logic)
   if (session) {
       const { allowed } = await checkViewLimit(session.userId, id, session.tier);
       if (!allowed) return <LimitReachedScreen />;
@@ -226,9 +229,9 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
     );
   }
 
-  // Use a fallback image if none exists
-  const imageSource = strategy.imageUrl && strategy.imageUrl.length > 0 
-    ? strategy.imageUrl 
+  // --- FIX: Logic corrected to use backtestImageUrl ---
+  const imageSource = strategy.backtestImageUrl && strategy.backtestImageUrl.length > 0 
+    ? strategy.backtestImageUrl 
     : FALLBACK_IMAGE;
 
   return (
@@ -357,19 +360,91 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                   bgColor="bg-gradient-to-br from-purple-50 to-purple-100"
                 />
               </div>
+
+              {/* Strategy Tags */}
+              <div className="mt-6 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 rounded-2xl border border-amber-200">
+                <div className="flex items-center mb-4">
+                  <SparklesIcon className="w-6 h-6 text-amber-600 mr-2"/>
+                  <h3 className="text-lg font-bold text-amber-900">Strategy Tags</h3>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(strategy as any).tags?.map((tag: string, index: number) => (
+                    <span 
+                      key={index} 
+                      className="px-4 py-2 bg-white text-amber-700 text-sm font-semibold rounded-full border border-amber-300 shadow-sm hover:shadow-md transition"
+                    >
+                      {tag}
+                    </span>
+                  )) ?? <p className="text-gray-600">No tags available.</p>}
+                </div>
+              </div>
             </section>
 
-            {/* Strategy Description */}
+            {/* Strategy Description (Restored UI) */}
             <section className="mb-12">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <span className="w-1 h-8 bg-purple-600 rounded-full"></span>
                 Strategy Description
               </h2>
-              <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl p-8 border border-gray-200">
-                 <p className="text-gray-700 leading-relaxed text-lg">
-                    {strategy.description || 'No description available for this strategy.'}
-                 </p>
-              </div>
+              
+              {(() => {
+                const description = strategy.description || '';
+                const hasSteps = description.match(/Step \d+:/gi);
+                
+                if (hasSteps) {
+                  const steps = description.split(/(?=Step \d+:)/i).filter(s => s.trim());
+                  
+                  return (
+                    <div className="space-y-6">
+                      {steps.map((step, index) => {
+                        const stepMatch = step.match(/Step (\d+):\s*([^\.!?]*[\.!?]?)/i);
+                        const stepNumber = stepMatch ? stepMatch[1] : index + 1;
+                        const stepTitle = stepMatch ? stepMatch[2].trim() : 'Strategy Step';
+                        const stepContent = stepMatch ? step.substring(stepMatch[0].length).trim() : step;
+                        
+                        return (
+                          <div key={index} className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                                <span className="text-white text-xl font-black">{stepNumber}</span>
+                              </div>
+                              
+                              <div className="flex-1">
+                                <h3 className="text-lg font-bold text-gray-900 mb-3">{stepTitle}</h3>
+                                <div className="text-gray-700 leading-relaxed space-y-2">
+                                  {stepContent.split(/(?<=[.!?])\s+(?=[A-Z])/).map((sentence, i) => (
+                                    <p key={i} className="text-sm md:text-base">{sentence.trim()}</p>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                } else {
+                  const paragraphs = description.split(/\n\n+/).filter(p => p.trim());
+                  
+                  return (
+                    <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl p-8 border border-gray-200">
+                      <div className="prose prose-lg max-w-none">
+                        {paragraphs.length > 1 ? (
+                          paragraphs.map((para, i) => (
+                            <p key={i} className="text-gray-700 leading-relaxed mb-4 last:mb-0">
+                              {para.trim()}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-gray-700 leading-relaxed text-base md:text-lg">
+                            {description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              })()}
             </section>
 
             <section className="mb-12">
@@ -398,6 +473,7 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
               
               <StrategyActionButtons 
                 strategy={strategy} 
+                // Cast to any to accept 'Admin' or 'Free' along with the strict Plan names
                 userSubscription={(session?.tier || 'Free') as any} 
                 userRole={session?.tier === 'Admin' ? 'admin' : 'user'}
               />
