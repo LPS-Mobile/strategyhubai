@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { adminDb } from '@/lib/firebaseAdmin'; 
+import { adminDb } from '@/lib/firebase-admin'; 
 
 // Initialize Stripe with your specific version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
