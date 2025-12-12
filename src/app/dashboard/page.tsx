@@ -3,13 +3,15 @@
 import { useState, useEffect } from 'react';
 import { 
   Loader2, Brain, Gem, Layers, X, User, Mail, 
-  CreditCard, CheckCircle2, Sparkles, ArrowRight, LifeBuoy, Zap, Code, Settings
+  CreditCard, CheckCircle2, Sparkles, ArrowRight, LifeBuoy, Zap, Code, Settings, Lock 
 } from 'lucide-react'; 
 
 import { useRouter } from 'next/navigation';
 import { ProtectLogin, useAuthUser } from '@/lib/auth';
 import { auth, db } from '@/lib/firebase'; 
 import { doc, getDoc } from 'firebase/firestore'; 
+// Added sendPasswordResetEmail import
+import { sendPasswordResetEmail } from 'firebase/auth'; 
 
 // --- CONFIGURATION ---
 const STRIPE_PRICE_IDS: Record<string, string> = {
@@ -190,6 +192,9 @@ function DashboardContent() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // New state for password reset
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   useEffect(() => {
     async function fetchLatestUserData() {
@@ -233,6 +238,26 @@ function DashboardContent() {
     currentPlan = finalStatus.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
+  // --- PASSWORD RESET HANDLER ---
+  const handlePasswordReset = async () => {
+    if (!user.email) return;
+    
+    if (!window.confirm(`Send a password reset email to ${user.email}?`)) {
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      alert(`Password reset link sent to ${user.email}. Please check your inbox (and spam folder).`);
+    } catch (error: any) {
+      console.error("Password Reset Error:", error);
+      alert(`Error sending reset email: ${error.message}`);
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   // --- CHECKOUT HANDLERS ---
   const handleCheckout = async (tierName: string) => {
     setIsLoading(true);
@@ -261,7 +286,7 @@ function DashboardContent() {
  const handleManageSubscription = async () => {
     setIsLoading(true);
     try {
-      // 1. GET THE TOKEN (Missing in your previous code)
+      // 1. GET THE TOKEN
       const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : null;
 
       if (!idToken) {
@@ -359,14 +384,24 @@ function DashboardContent() {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">User ID</p>
-                      <p className="text-xs text-gray-400 font-mono bg-gray-50 px-3 py-2 rounded-lg inline-block">{user.uid}</p>
+                      <p className="text-xs text-gray-400 font-mono bg-gray-50 px-3 py-2 rounded-lg inline-block mb-2">{user.uid}</p>
+                      
+                      {/* Password Reset Button */}
+                      <button
+                        onClick={handlePasswordReset}
+                        disabled={isResettingPassword}
+                        className="flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors disabled:opacity-50 mt-2"
+                      >
+                        {isResettingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                        Reset Password
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Subscription Card - FIXED */}
+            {/* Subscription Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
               <div className="p-8">
                 <div className="flex items-center justify-between mb-6">
