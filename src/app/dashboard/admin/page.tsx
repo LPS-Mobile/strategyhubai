@@ -1,13 +1,13 @@
-"use client"; // 1. Mark as Client Component
+'use client';
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, CollectionReference, DocumentData } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Import Auth
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { Strategy } from '@/app/strategies/page';
 import AdminDashboardClient from '@/components/admin/AdminDashboardClient';
 
-// Define a User type
+// Export this interface so child components can use it
 export interface AdminUser {
   id: string;
   email: string | null;
@@ -25,11 +25,10 @@ export default function AdminPage() {
   useEffect(() => {
     const auth = getAuth();
     
-    // 2. Only fetch data once we know the user is logged in
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          // Fetch Strategies
+          // 1. Fetch Strategies
           const strategiesCol = collection(db, 'strategies') as CollectionReference<DocumentData>;
           const stratSnap = await getDocs(strategiesCol);
           const stratData: Strategy[] = [];
@@ -38,7 +37,7 @@ export default function AdminPage() {
             stratData.push({ id: doc.id, ...(data as Omit<Strategy, 'id'>) } as Strategy);
           });
 
-          // Fetch Users
+          // 2. Fetch Users
           const usersCol = collection(db, 'users') as CollectionReference<DocumentData>;
           const userSnap = await getDocs(usersCol);
           const userData: AdminUser[] = [];
@@ -57,12 +56,11 @@ export default function AdminPage() {
           setUsers(userData);
         } catch (err: any) {
           console.error("Error fetching admin data:", err);
-          setError("Failed to load admin data. You might not have permission.");
+          setError("Failed to load admin data.");
         } finally {
           setLoading(false);
         }
       } else {
-        // Handle unauthenticated state (optional: redirect)
         setLoading(false);
       }
     });
@@ -71,11 +69,22 @@ export default function AdminPage() {
   }, []);
 
   if (loading) {
-    return <div className="p-8 text-center">Loading Admin Dashboard...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg font-semibold text-gray-600 animate-pulse">
+          Loading Admin Dashboard...
+        </div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="p-8 text-center text-red-500">{error}</div>;
+    return (
+      <div className="p-8 text-center text-red-500 bg-red-50 m-8 rounded-lg">
+        <h3 className="font-bold">Access Error</h3>
+        <p>{error}</p>
+      </div>
+    );
   }
 
   return (
