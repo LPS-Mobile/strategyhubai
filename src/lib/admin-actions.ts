@@ -1,106 +1,167 @@
 'use server';
 
-import { z } from 'zod';
-import { adminAuth, adminDb, verifyIdToken } from '@/lib/firebase-admin'; 
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { revalidatePath } from 'next/cache';
 
-// --- 🔒 SECURITY HELPER (ADD THIS) ---
-// This ensures only real admins can call these functions
-async function assertAdmin(idToken: string) {
-  const decodedToken = await verifyIdToken(idToken);
-  if (!decodedToken) throw new Error('Unauthenticated.');
-  
-  const adminDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-  if (adminDoc.data()?.role !== 'admin') throw new Error('Unauthorized: Admin access required.');
-  
-  return decodedToken.uid;
+// --- 1. INITIALIZE FIREBASE ADMIN (Server Side Only) ---
+function initAdmin() {
+  if (!getApps().length) {
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+        initializeApp({
+            credential: cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+            }),
+        });
+    } else {
+        // Fallback for dev if env vars aren't perfect, or throw error
+        console.error("Missing Firebase Admin Env Vars");
+    }
+  }
 }
 
-// --- SCHEMAS ---
-const UserSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  status: z.string(),
-});
+// Ensure it's initialized before any action runs
+initAdmin();
 
-// New Schema for Updates
-const UpdateUserSchema = z.object({
-  userId: z.string(),
-  email: z.string().email().optional().or(z.literal('')),
-  password: z.string().min(6).optional().or(z.literal('')),
-});
+const db = getFirestore();
+const auth = getAuth();
 
-// --- 1. CREATE USER (Update your existing one to verify admin) ---
-export async function createNewUser(prevState: any, formData: FormData) {
-  // SECURITY CHECK: You must pass the token in a hidden input or handle auth differently. 
-  // For form actions, it's harder to pass the token. 
-  // Ideally, use a client-side fetch for admin actions or trust the session cookie if using next-auth.
-  // For now, we will leave your create function as is, but be aware of the risk.
-  
-  // ... (Your existing createNewUser code here) ...
-}
+// --- 2. TYPES ---
 
-// --- 2. DELETE USER (Updated with Security) ---
-export async function deleteUser(idToken: string, userId: string) {
+// This type MUST match what useFormState expects
+export type ActionState = {
+  message: string;
+  errors: Record<string, string[]> | null;
+};
+
+// --- 3. SERVER ACTIONS ---
+
+/**
+ * Creates a new user in Authentication AND Firestore.
+ * Used by AddUserModal with useFormState.
+ */
+export async function createNewUser(
+  prevState: ActionState, 
+  formData: FormData
+): Promise<ActionState> {
+  const email = formData.get('email') as string;
+  const password = formData.get('password') as string;
+  const status = formData.get('status') as string; // 'Inactive', 'Active Trader', etc.
+  const role = status === 'Admin' ? 'admin' : 'user';
+
+  // 1. Basic Validation
+  const errors: Record<string, string[]> = {};
+  if (!email || !email.includes('@')) errors.email = ['Invalid email address.'];
+  if (!password || password.length < 6) errors.password = ['Password must be at least 6 characters.'];
+
+  if (Object.keys(errors).length > 0) {
+    return { message: 'Validation failed', errors };
+  }
+
   try {
-    await assertAdmin(idToken); // 🔒 Protect this function
+    // 2. Create Auth User
+    const userRecord = await auth.createUser({
+      email,
+      password,
+      displayName: email.split('@')[0], // Default name
+    });
 
-    if (!userId) return { message: 'Error: User ID is required.' };
+    // 3. Create Firestore Document
+    // We map the dropdown "Status" (e.g., 'Curious Retail') to subscriptionStatus
+    await db.collection('users').doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      email: userRecord.email,
+      displayName: userRecord.displayName,
+      role: role,
+      subscriptionStatus: status === 'Inactive' ? 'free' : status, // specific plan name
+      createdAt: new Date(),
+    });
 
-    await adminAuth.deleteUser(userId);
-    await adminDb.collection('users').doc(userId).delete();
-    
+    // 4. Revalidate to refresh the table UI
     revalidatePath('/dashboard/admin');
-    return { success: true, message: 'User deleted successfully.' };
+
+    return { message: 'User created successfully!', errors: null };
+
   } catch (error: any) {
-    console.error('Delete Error:', error);
+    console.error('Create User Error:', error);
+    return { 
+      message: error.message || 'Failed to create user.', 
+      errors: null 
+    };
+  }
+}
+
+/**
+ * Updates a user's email or password.
+ * Used by UserAdminTable (direct async call, not useFormState).
+ */
+export async function updateUserCredentials(
+  adminIdToken: string, 
+  targetUid: string, 
+  newEmail: string, 
+  newPassword?: string
+) {
+  try {
+    // 1. Security Check: Verify the requester is actually an admin
+    const decodedToken = await auth.verifyIdToken(adminIdToken);
+    
+    // Check custom claims or firestore role
+    const adminDoc = await db.collection('users').doc(decodedToken.uid).get();
+    const adminData = adminDoc.data();
+    
+    if (adminData?.role !== 'admin') {
+        throw new Error("Unauthorized: You are not an admin.");
+    }
+
+    // 2. Prepare Update Object
+    const updateData: any = { email: newEmail };
+    if (newPassword && newPassword.trim() !== '') {
+      updateData.password = newPassword;
+    }
+
+    // 3. Update Auth
+    await auth.updateUser(targetUid, updateData);
+
+    // 4. Update Firestore Email (to keep sync)
+    await db.collection('users').doc(targetUid).update({
+      email: newEmail
+    });
+
+    revalidatePath('/dashboard/admin');
+    return { success: true, message: 'User updated' };
+
+  } catch (error: any) {
+    console.error('Update Error:', error);
     return { success: false, message: error.message };
   }
 }
 
-// --- 3. NEW: UPDATE CREDENTIALS (The feature you requested) ---
-export async function updateUserCredentials(
-  idToken: string, 
-  targetUserId: string, 
-  newEmail?: string, 
-  newPassword?: string
-) {
+/**
+ * Deletes a user from Auth and Firestore.
+ */
+export async function deleteUser(adminIdToken: string, targetUid: string) {
   try {
-    await assertAdmin(idToken); // 🔒 Protect this function
-
-    const updates: any = {};
-    
-    // Validate inputs
-    if (newEmail && newEmail.trim() !== '') {
-      const emailValidation = z.string().email().safeParse(newEmail);
-      if (!emailValidation.success) return { success: false, message: 'Invalid email format.' };
-      updates.email = newEmail;
+    // 1. Security Check
+    const decodedToken = await auth.verifyIdToken(adminIdToken);
+    const adminDoc = await db.collection('users').doc(decodedToken.uid).get();
+    if (adminDoc.data()?.role !== 'admin') {
+        throw new Error("Unauthorized");
     }
 
-    if (newPassword && newPassword.trim() !== '') {
-      if (newPassword.length < 6) return { success: false, message: 'Password too short (min 6).' };
-      updates.password = newPassword;
-    }
+    // 2. Delete from Auth
+    await auth.deleteUser(targetUid);
 
-    if (Object.keys(updates).length === 0) {
-      return { success: false, message: 'No changes provided.' };
-    }
-
-    // Update Auth
-    await adminAuth.updateUser(targetUserId, updates);
-
-    // Update Firestore if email changed
-    if (updates.email) {
-      await adminDb.collection('users').doc(targetUserId).update({
-        email: updates.email
-      });
-    }
+    // 3. Delete from Firestore
+    await db.collection('users').doc(targetUid).delete();
 
     revalidatePath('/dashboard/admin');
-    return { success: true, message: 'User updated successfully' };
+    return { success: true, message: 'User deleted' };
 
   } catch (error: any) {
-    console.error("Update Error:", error);
+    console.error('Delete Error:', error);
     return { success: false, message: error.message };
   }
 }
