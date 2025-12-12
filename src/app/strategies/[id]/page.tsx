@@ -1,24 +1,19 @@
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 import { Strategy } from '@/app/strategies/page'; 
 import Image from 'next/image';
 import Link from 'next/link';
 import { CheckCircleIcon, CodeBracketSquareIcon, PlayCircleIcon, ArrowLeftIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { SparklesIcon, ChartBarIcon } from '@heroicons/react/24/solid';
-
 import { cookies } from 'next/headers';
+
+// FIX 1: Use only adminDb for fetching data in Server Components
 import { adminAuth, adminDb } from '@/lib/firebase-admin'; 
 import * as admin from 'firebase-admin'; 
 import StrategyActionButtons from '@/components/strategies/StrategyActionButtons';
 
-// --- Constants & Types ---
-
 const FALLBACK_IMAGE = "https://placehold.co/1000x500/f1f5f9/475569?text=Backtest+Chart+Unavailable";
 
 interface StrategyDetailPageProps {
-  params: Promise<{
-    id: string;
-  }>;
+  params: Promise<{ id: string }>;
 }
 
 type SubscriptionTier = "Curious Retail" | "Active Trader" | "Quant Edge" | "Admin" | null;
@@ -51,6 +46,7 @@ async function getUserSession() {
     const userData = userDoc.data();
     let tier = (userData?.subscriptionTier as SubscriptionTier) || null;
 
+    // Check logic for Admin role
     if (userData?.role === 'admin' || tier?.toString().toLowerCase().includes('admin')) {
         tier = 'Admin';
     }
@@ -58,12 +54,12 @@ async function getUserSession() {
     return { userId, tier };
 
   } catch (error) {
-    console.warn("Session verification failed:", error);
+    // console.warn("Session verification failed:", error); 
     return null;
   }
 }
 
-// 2. LOGIC: Check & Increment View Limit (3 Per Month)
+// 2. LOGIC: Check & Increment View Limit
 async function checkViewLimit(userId: string, strategyId: string, tier: SubscriptionTier): Promise<{ allowed: boolean }> {
     if (tier === 'Active Trader' || tier === 'Quant Edge' || tier === 'Admin') {
         return { allowed: true };
@@ -106,19 +102,37 @@ async function checkViewLimit(userId: string, strategyId: string, tier: Subscrip
     return { allowed: false };
 }
 
+// FIX 2: Use adminDb instead of client db
 async function getStrategy(id: string): Promise<Strategy | null> {
-  if (!id || typeof id !== 'string') return null;
+  if (!id) return null;
 
   try {
-    const docRef = doc(db, 'strategies', id);
-    const docSnap = await getDoc(docRef);
+    // Clean the ID just in case
+    const cleanId = id.trim();
+    
+    // Use Admin SDK to bypass client-side security rules
+    const docSnap = await adminDb.collection('strategies').doc(cleanId).get();
 
-    if (docSnap.exists()) {
+    if (docSnap.exists) {
+      const data = docSnap.data();
+      // Ensure we return a plain object compatible with the Strategy interface
       return {
         id: docSnap.id,
-        ...(docSnap.data() as Omit<Strategy, 'id'>),
+        name: data?.name || '',
+        description: data?.description || '',
+        winRate: data?.winRate || 0,
+        profitFactor: data?.profitFactor || 0,
+        trades: data?.trades || 0,
+        tier: data?.tier || 'Curious Retail',
+        status: data?.status || 'active',
+        imageUrl: data?.imageUrl || '',
+        videoUrl: data?.videoUrl || '',
+        detailedReportUrl: data?.detailedReportUrl || '',
+        // Add any other fields you need, casting strictly if necessary
+        ...data 
       } as Strategy;
     } else {
+      console.error(`Strategy ID ${cleanId} not found in Firestore.`);
       return null;
     }
   } catch (error) {
@@ -187,6 +201,7 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
   const session = await getUserSession();
   
+  // Only check limits if logged in; otherwise let them see basic info or redirect (up to your auth logic)
   if (session) {
       const { allowed } = await checkViewLimit(session.userId, id, session.tier);
       if (!allowed) return <LimitReachedScreen />;
@@ -196,17 +211,24 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
 
   if (!strategy) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Strategy Not Found</h1>
-          <Link href="/strategies" className="text-blue-600 underline">Back to Strategies</Link>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center border border-gray-200">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LockClosedIcon className="w-8 h-8 text-red-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Strategy Not Found</h1>
+          <p className="text-gray-500 mb-6">We couldn't find the strategy you were looking for. It may have been removed or the ID is incorrect.</p>
+          <Link href="/strategies" className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+             <ArrowLeftIcon className="w-4 h-4 mr-2" /> Back to Strategies
+          </Link>
         </div>
       </div>
     );
   }
 
-  const imageSource = strategy.backtestImageUrl && strategy.backtestImageUrl.length > 0 
-    ? strategy.backtestImageUrl 
+  // Use a fallback image if none exists
+  const imageSource = strategy.imageUrl && strategy.imageUrl.length > 0 
+    ? strategy.imageUrl 
     : FALLBACK_IMAGE;
 
   return (
@@ -282,7 +304,7 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 </div>
                 
                 <a 
-                  href={strategy.sourceLink} 
+                  href={strategy.videoUrl || '#'} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-2xl shadow-sm border border-gray-700 flex flex-col items-center justify-center hover:scale-105 transition-all duration-200 group"
@@ -304,7 +326,7 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 
                 <MetricBoxDetail 
                   label="Total Trades" 
-                  value={(strategy as any).tradeCount?.toLocaleString() || 'N/A'} 
+                  value={(strategy as any).trades?.toLocaleString() || 'N/A'} 
                   color="text-blue-600"
                   size="text-3xl"
                   bgColor="bg-gradient-to-br from-blue-50 to-blue-100"
@@ -335,24 +357,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                   bgColor="bg-gradient-to-br from-purple-50 to-purple-100"
                 />
               </div>
-
-              {/* Strategy Tags */}
-              <div className="mt-6 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 rounded-2xl border border-amber-200">
-                <div className="flex items-center mb-4">
-                  <SparklesIcon className="w-6 h-6 text-amber-600 mr-2"/>
-                  <h3 className="text-lg font-bold text-amber-900">Strategy Tags</h3>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {(strategy as any).tags?.map((tag: string, index: number) => (
-                    <span 
-                      key={index} 
-                      className="px-4 py-2 bg-white text-amber-700 text-sm font-semibold rounded-full border border-amber-300 shadow-sm hover:shadow-md transition"
-                    >
-                      {tag}
-                    </span>
-                  )) ?? <p className="text-gray-600">No tags available.</p>}
-                </div>
-              </div>
             </section>
 
             {/* Strategy Description */}
@@ -361,65 +365,11 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
                 <span className="w-1 h-8 bg-purple-600 rounded-full"></span>
                 Strategy Description
               </h2>
-              
-              {(() => {
-                const description = strategy.description || '';
-                const hasSteps = description.match(/Step \d+:/gi);
-                
-                if (hasSteps) {
-                  const steps = description.split(/(?=Step \d+:)/i).filter(s => s.trim());
-                  
-                  return (
-                    <div className="space-y-6">
-                      {steps.map((step, index) => {
-                        const stepMatch = step.match(/Step (\d+):\s*([^\.!?]*[\.!?]?)/i);
-                        const stepNumber = stepMatch ? stepMatch[1] : index + 1;
-                        const stepTitle = stepMatch ? stepMatch[2].trim() : 'Strategy Step';
-                        const stepContent = stepMatch ? step.substring(stepMatch[0].length).trim() : step;
-                        
-                        return (
-                          <div key={index} className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
-                            <div className="flex items-start gap-4">
-                              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                                <span className="text-white text-xl font-black">{stepNumber}</span>
-                              </div>
-                              
-                              <div className="flex-1">
-                                <h3 className="text-lg font-bold text-gray-900 mb-3">{stepTitle}</h3>
-                                <div className="text-gray-700 leading-relaxed space-y-2">
-                                  {stepContent.split(/(?<=[.!?])\s+(?=[A-Z])/).map((sentence, i) => (
-                                    <p key={i} className="text-sm md:text-base">{sentence.trim()}</p>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                } else {
-                  const paragraphs = description.split(/\n\n+/).filter(p => p.trim());
-                  
-                  return (
-                    <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl p-8 border border-gray-200">
-                      <div className="prose prose-lg max-w-none">
-                        {paragraphs.length > 1 ? (
-                          paragraphs.map((para, i) => (
-                            <p key={i} className="text-gray-700 leading-relaxed mb-4 last:mb-0">
-                              {para.trim()}
-                            </p>
-                          ))
-                        ) : (
-                          <p className="text-gray-700 leading-relaxed text-base md:text-lg">
-                            {description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-              })()}
+              <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl p-8 border border-gray-200">
+                 <p className="text-gray-700 leading-relaxed text-lg">
+                    {strategy.description || 'No description available for this strategy.'}
+                 </p>
+              </div>
             </section>
 
             <section className="mb-12">
@@ -448,7 +398,6 @@ export default async function StrategyDetailPage({ params }: StrategyDetailPageP
               
               <StrategyActionButtons 
                 strategy={strategy} 
-                // FIX: Cast to any to accept 'Admin' or 'Free'
                 userSubscription={(session?.tier || 'Free') as any} 
                 userRole={session?.tier === 'Admin' ? 'admin' : 'user'}
               />
