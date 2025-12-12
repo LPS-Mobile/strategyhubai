@@ -58,7 +58,10 @@ export async function POST(request: NextRequest) {
         price: priceId,
         quantity: 1,
       }],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/success?session_id={CHECKOUT_SESSION_ID}`,
+      // -----------------------------------------------------------
+      // UPDATED LINE: Point to your new /payment-success page
+      // -----------------------------------------------------------
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/#pricing`,
     };
 
@@ -80,13 +83,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       sessionId: session.id,
-      url: session.url // Return the checkout URL directly
+      url: session.url 
     });
     
   } catch (error: any) {
     console.error('Error creating checkout session:', error);
     
-    // Return detailed error for debugging
     return NextResponse.json(
       { 
         error: error.message || 'Internal server error',
