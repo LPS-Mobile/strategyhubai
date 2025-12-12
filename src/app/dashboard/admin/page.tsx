@@ -1,9 +1,13 @@
+"use client"; // 1. Mark as Client Component
+
+import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, CollectionReference, DocumentData } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Import Auth
 import { Strategy } from '@/app/strategies/page';
-import AdminDashboardClient from '@/components/admin/AdminDashboardClient'; // <-- NEW
+import AdminDashboardClient from '@/components/admin/AdminDashboardClient';
 
-// Define a User type (you can expand this)
+// Define a User type
 export interface AdminUser {
   id: string;
   email: string | null;
@@ -12,54 +16,67 @@ export interface AdminUser {
   role: 'admin' | null;
 }
 
-// --- ☁️ SERVER-SIDE DATA FETCHING ---
+export default function AdminPage() {
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-async function getStrategiesForAdmin(): Promise<Strategy[]> {
-  // ... (your existing function, no changes)
-  const strategiesCol = collection(db, 'strategies') as CollectionReference<DocumentData>;
-  const querySnapshot = await getDocs(strategiesCol);
-  const strategies: Strategy[] = [];
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
-    strategies.push({
-      id: doc.id,
-      ...(data as Omit<Strategy, 'id'>),
-    } as Strategy);
-  });
-  return strategies;
-}
-
-// --- NEW FUNCTION TO FETCH USERS ---
-async function getUsersForAdmin(): Promise<AdminUser[]> {
-  try {
-    const usersCol = collection(db, 'users') as CollectionReference<DocumentData>;
-    const querySnapshot = await getDocs(usersCol);
-
-    const users: AdminUser[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      users.push({
-        id: doc.id,
-        email: data.email || null,
-        displayName: data.displayName || null,
-        subscriptionStatus: data.subscriptionStatus || null,
-        role: data.role || null,
-      });
-    });
+  useEffect(() => {
+    const auth = getAuth();
     
-    return users;
-  } catch (error) {
-    console.error("🔥 Error fetching users for admin dashboard:", error);
-    return [];
+    // 2. Only fetch data once we know the user is logged in
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          // Fetch Strategies
+          const strategiesCol = collection(db, 'strategies') as CollectionReference<DocumentData>;
+          const stratSnap = await getDocs(strategiesCol);
+          const stratData: Strategy[] = [];
+          stratSnap.forEach((doc) => {
+            const data = doc.data();
+            stratData.push({ id: doc.id, ...(data as Omit<Strategy, 'id'>) } as Strategy);
+          });
+
+          // Fetch Users
+          const usersCol = collection(db, 'users') as CollectionReference<DocumentData>;
+          const userSnap = await getDocs(usersCol);
+          const userData: AdminUser[] = [];
+          userSnap.forEach((doc) => {
+            const data = doc.data();
+            userData.push({
+              id: doc.id,
+              email: data.email || null,
+              displayName: data.displayName || null,
+              subscriptionStatus: data.subscriptionStatus || null,
+              role: data.role || null,
+            });
+          });
+
+          setStrategies(stratData);
+          setUsers(userData);
+        } catch (err: any) {
+          console.error("Error fetching admin data:", err);
+          setError("Failed to load admin data. You might not have permission.");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // Handle unauthenticated state (optional: redirect)
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return <div className="p-8 text-center">Loading Admin Dashboard...</div>;
   }
-}
 
-// --- 🌐 ADMIN PAGE COMPONENT (Updated) ---
-
-export default async function AdminPage() {
-  // Fetch BOTH data sets on the server
-  const strategies = await getStrategiesForAdmin();
-  const users = await getUsersForAdmin();
+  if (error) {
+    return <div className="p-8 text-center text-red-500">{error}</div>;
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
@@ -72,9 +89,6 @@ export default async function AdminPage() {
         </p>
       </header>
       
-      {/* Pass both sets of data to a new Client Component
-          that will handle the tab switching and logic.
-      */}
       <AdminDashboardClient 
         initialStrategies={strategies} 
         initialUsers={users} 
