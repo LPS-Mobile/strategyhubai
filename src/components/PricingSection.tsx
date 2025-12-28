@@ -110,6 +110,7 @@ export default function PricingSection({ onJoinBeta }: PricingSectionProps) {
       features: [
         "All Active Trader features",
         "Full Probability breakdowns (Payoff, Variance)",
+        "Probability Map Tradingview indicators Access",
         "Submit 1 custom strategy for backtest/month",
         "Request custom parameter analysis",
       ],
